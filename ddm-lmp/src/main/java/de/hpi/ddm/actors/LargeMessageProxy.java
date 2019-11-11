@@ -2,16 +2,17 @@ package de.hpi.ddm.actors;
 
 import java.io.*;
 import java.lang.reflect.Executable;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.CompletionStage;
 
 import akka.NotUsed;
 import akka.actor.AbstractLoggingActor;
 import akka.actor.ActorRef;
 import akka.actor.ActorSelection;
 import akka.actor.Props;
-import akka.stream.ActorMaterializer;
-import akka.stream.Materializer;
-import akka.stream.OverflowStrategy;
-import akka.stream.SourceRef;
+import akka.stream.*;
+import akka.stream.impl.streamref.StreamRefResolverImpl;
 import akka.stream.javadsl.*;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
@@ -33,8 +34,6 @@ public class LargeMessageProxy extends AbstractLoggingActor {
     public static Props props() {
         return Props.create(LargeMessageProxy.class);
     }
-
-    private final Materializer materializer = ActorMaterializer.create(this.context());
 
     ////////////////////
     // Actor Messages //
@@ -75,7 +74,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
     public Receive createReceive() {
         return receiveBuilder()
                 .match(LargeMessage.class, this::handle)
-                .match(BytesMessage.class, this::handle)
+                .match(SourceRefMessage.class, this::handle)
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
                 .build();
     }
@@ -94,21 +93,30 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 
 			bos.close();
 
-            Source<byte[], ActorRef> source = Source.actorRef(messageByte.length, OverflowStrategy.dropHead());
+            Source<List<byte[]>, NotUsed> source = Source
+                    .from(Arrays.asList(messageByte))
+                    .grouped(messageByte.length/1024);
 
-            ActorRef actorRef = source
-                    .to(Sink.foreach(o -> {
-                    	ByteArrayInputStream bai = new ByteArrayInputStream(o);
-                        Kryo kryo1 = new Kryo();
-                        Input input = new Input(bai);
-                        Object message1 = kryo1.readClassAndObject(input);
-                        System.out.println("We have: " + message1);
-                        input.close();
-                        bai.close();
-                    }))
-                    .run(materializer);
+                    //.map(x-> receiverProxy.tell(new SourceRefMessage(x, this.sender(), message.getReceiver()), getSelf()));
 
-            actorRef.tell(messageByte, this.self());
+//            source.runForeach(receiverProxy.tell(new SourceRefMessage(, this.sender(), message.getReceiver()), getSelf()));
+
+            SourceRef<List<byte []>> sourceRef = source.runWith(StreamRefs.sourceRef(), this.context().system());
+            receiverProxy.tell(new SourceRefMessage(sourceRef, this.sender(), message.getReceiver()), getSelf());
+
+//            ActorRef actorRef = source
+//                    .to(Sink.foreach(o -> {
+//                    	ByteArrayInputStream bai = new ByteArrayInputStream(o);
+//                        Kryo kryo1 = new Kryo();
+//                        Input input = new Input(bai);
+//                        Object message1 = kryo1.readClassAndObject(input);
+//                        System.out.println("We have: " + message1);
+//                        input.close();
+//                        bai.close();
+//                    }))
+//                    .run(materializer);
+//            actorRef.tell(messageByte, this.self());
+
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -123,8 +131,19 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 
     }
 
-    private void handle(BytesMessage<?> message) {
+    private void handle(SourceRefMessage message) {
         // Reassemble the message content, deserialize it and/or load the content from some local location before forwarding its content.
-        message.getReceiver().tell(message.getBytes(), message.getSender());
+        SourceRef<List<byte []>> sourceRef = message.getSourceRef();
+        CompletionStage<List<List<byte[]>>> completed = sourceRef.getSource().runWith(Sink.seq(), this.context().system());
+//                foreach(o -> {
+//                    	ByteArrayInputStream bai = new ByteArrayInputStream(o);
+//                        Kryo kryo1 = new Kryo();
+//                        Input input = new Input(bai);
+//                        Object message1 = kryo1.readClassAndObject(input);
+//                        System.out.println("We have: " + message1);
+//                        input.close();
+//                        bai.close();
+//                    })
+//        message.getReceiver().tell(message.getBytes(), message.getSender());
     }
 }
