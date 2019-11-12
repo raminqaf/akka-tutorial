@@ -24,7 +24,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.SerializationUtils;
-
 import static java.lang.Math.max;
 
 public class LargeMessageProxy extends AbstractLoggingActor {
@@ -142,10 +141,11 @@ public class LargeMessageProxy extends AbstractLoggingActor {
         SourceRef<Byte> sourceRef = message.getSourceRef();
         CompletionStage<List<Byte>> listCompletionStage = sourceRef.getSource().limit(message.getLength()).runWith(Sink.seq(), this.context().system());
         listCompletionStage.whenCompleteAsync((listOfBytes, exception) -> {
-            byte[] arrayOfbytes = new byte[listOfBytes.size()];
-            for(int index=0; index < listOfBytes.size(); index++) {
-                arrayOfbytes[index] = listOfBytes.get(index);
-            }
+            byte[] arrayOfbytes = ArrayUtils.toPrimitive(listOfBytes.toArray(new Byte[listOfBytes.size()]));
+            //arrayOfbytes = ArrayUtils.toPrimitive(listOfBytes.toArray(new Byte[listOfBytes.size()]));
+//            for(int index=0; index < listOfBytes.size(); index++) {
+//                arrayOfbytes[index] = listOfBytes.get(index);
+//            }
             ByteArrayInputStream bai = new ByteArrayInputStream(arrayOfbytes);
                         Kryo kryo1 = new Kryo();
                         Input input = new Input(bai);
@@ -154,7 +154,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
             LocalDateTime now1 = LocalDateTime.now();
             System.out.println(dtf.format(now1));
             message.getReceiver().tell(message1, message.getSender());
-                        input.close();
+            input.close();
             try {
                 bai.close();
             } catch (IOException e) {
