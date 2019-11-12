@@ -2,6 +2,8 @@ package de.hpi.ddm.actors;
 
 import java.io.*;
 import java.lang.reflect.Executable;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CompletionStage;
@@ -20,8 +22,10 @@ import com.esotericsoftware.kryo.io.Output;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.SerializationUtils;
-import sun.jvm.hotspot.runtime.Bytes;
+
+import static java.lang.Math.max;
 
 public class LargeMessageProxy extends AbstractLoggingActor {
 
@@ -91,18 +95,15 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 			output.close();
             byte [] messageByte = bos.toByteArray();
 
-			bos.close();
-
-            Source<List<byte[]>, NotUsed> source = Source
-                    .from(Arrays.asList(messageByte))
-                    .grouped(messageByte.length/1024);
+            Source<Byte, NotUsed> source = Source.from(Arrays.asList(ArrayUtils.toObject(messageByte)));
+                    //.grouped(messageByte.length/1024);
 
                     //.map(x-> receiverProxy.tell(new SourceRefMessage(x, this.sender(), message.getReceiver()), getSelf()));
 
 //            source.runForeach(receiverProxy.tell(new SourceRefMessage(, this.sender(), message.getReceiver()), getSelf()));
 
-            SourceRef<List<byte []>> sourceRef = source.runWith(StreamRefs.sourceRef(), this.context().system());
-            receiverProxy.tell(new SourceRefMessage(sourceRef, this.sender(), message.getReceiver()), getSelf());
+            SourceRef<Byte> sourceRef = source.runWith(StreamRefs.sourceRef(), this.context().system());
+            receiverProxy.tell(new SourceRefMessage(sourceRef, messageByte.length, this.sender(), message.getReceiver()), getSelf());
 
 //            ActorRef actorRef = source
 //                    .to(Sink.foreach(o -> {
@@ -133,17 +134,34 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 
     private void handle(SourceRefMessage message) {
         // Reassemble the message content, deserialize it and/or load the content from some local location before forwarding its content.
-        SourceRef<List<byte []>> sourceRef = message.getSourceRef();
-        CompletionStage<List<List<byte[]>>> completed = sourceRef.getSource().runWith(Sink.seq(), this.context().system());
-//                foreach(o -> {
-//                    	ByteArrayInputStream bai = new ByteArrayInputStream(o);
-//                        Kryo kryo1 = new Kryo();
-//                        Input input = new Input(bai);
-//                        Object message1 = kryo1.readClassAndObject(input);
-//                        System.out.println("We have: " + message1);
-//                        input.close();
-//                        bai.close();
-//                    })
-//        message.getReceiver().tell(message.getBytes(), message.getSender());
+        System.out.println("We have a new message");
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
+        LocalDateTime now = LocalDateTime.now();
+        System.out.println(dtf.format(now));
+
+        SourceRef<Byte> sourceRef = message.getSourceRef();
+        CompletionStage<List<Byte>> listCompletionStage = sourceRef.getSource().limit(message.getLength()).runWith(Sink.seq(), this.context().system());
+        listCompletionStage.whenCompleteAsync((listOfBytes, exception) -> {
+            byte[] arrayOfbytes = new byte[listOfBytes.size()];
+            for(int index=0; index < listOfBytes.size(); index++) {
+                arrayOfbytes[index] = listOfBytes.get(index);
+            }
+            ByteArrayInputStream bai = new ByteArrayInputStream(arrayOfbytes);
+                        Kryo kryo1 = new Kryo();
+                        Input input = new Input(bai);
+                        Object message1 = kryo1.readClassAndObject(input);
+                        System.out.println("We have: " + message1);
+            LocalDateTime now1 = LocalDateTime.now();
+            System.out.println(dtf.format(now1));
+            message.getReceiver().tell(message1, message.getSender());
+                        input.close();
+            try {
+                bai.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+//
+
     }
 }
