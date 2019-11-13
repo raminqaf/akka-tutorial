@@ -24,7 +24,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.SerializationUtils;
-
 import static java.lang.Math.max;
 
 public class LargeMessageProxy extends AbstractLoggingActor {
