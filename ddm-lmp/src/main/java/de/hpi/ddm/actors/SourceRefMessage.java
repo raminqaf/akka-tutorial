@@ -14,7 +14,7 @@ import java.util.List;
 @AllArgsConstructor
 public class SourceRefMessage implements Serializable {
     private static final long serialVersionUID = 4057807743872319842L;
-    private SourceRef<Byte> sourceRef;
+    private SourceRef<List<Byte>> sourceRef;
     private int length;
     private ActorRef sender;
     private ActorRef receiver;

@@ -95,14 +95,14 @@ public class LargeMessageProxy extends AbstractLoggingActor {
 			output.close();
             byte [] messageByte = bos.toByteArray();
 
-            Source<Byte, NotUsed> source = Source.from(Arrays.asList(ArrayUtils.toObject(messageByte)));
+            Source<List<Byte>, NotUsed> source = Source.from(Arrays.asList(ArrayUtils.toObject(messageByte))).grouped(1024);
                     //.grouped(messageByte.length/1024);
 
                     //.map(x-> receiverProxy.tell(new SourceRefMessage(x, this.sender(), message.getReceiver()), getSelf()));
 
 //            source.runForeach(receiverProxy.tell(new SourceRefMessage(, this.sender(), message.getReceiver()), getSelf()));
 
-            SourceRef<Byte> sourceRef = source.runWith(StreamRefs.sourceRef(), this.context().system());
+            SourceRef<List<Byte>> sourceRef = source.runWith(StreamRefs.sourceRef(), this.context().system());
             receiverProxy.tell(new SourceRefMessage(sourceRef, messageByte.length, this.sender(), message.getReceiver()), getSelf());
 
 //            ActorRef actorRef = source
@@ -139,25 +139,30 @@ public class LargeMessageProxy extends AbstractLoggingActor {
         LocalDateTime now = LocalDateTime.now();
         System.out.println(dtf.format(now));
 
-        SourceRef<Byte> sourceRef = message.getSourceRef();
-        CompletionStage<List<Byte>> listCompletionStage = sourceRef.getSource().limit(message.getLength()).runWith(Sink.seq(), this.context().system());
+        SourceRef<List<Byte>> sourceRef = message.getSourceRef();
+        CompletionStage<List<List<Byte>>> listCompletionStage = sourceRef.getSource().limit(message.getLength()).runWith(Sink.seq(), this.context().system());
         listCompletionStage.whenCompleteAsync((listOfBytes, exception) -> {
-            byte[] arrayOfbytes = new byte[listOfBytes.size()];
-            for(int index=0; index < listOfBytes.size(); index++) {
-                arrayOfbytes[index] = listOfBytes.get(index);
+            System.out.println("We have a new message");
+            byte[] arrayOfbytes = new byte[message.getLength()];
+            int index=0;
+            for(List<Byte> list : listOfBytes) {
+                for(Byte singleByte : list) {
+                    arrayOfbytes[index] = singleByte;
+                    index++;
+                }
             }
+            try {
             ByteArrayInputStream bai = new ByteArrayInputStream(arrayOfbytes);
                         Kryo kryo1 = new Kryo();
                         Input input = new Input(bai);
                         Object message1 = kryo1.readClassAndObject(input);
+                input.close();
+                bai.close();
                         System.out.println("We have: " + message1);
             LocalDateTime now1 = LocalDateTime.now();
             System.out.println(dtf.format(now1));
             message.getReceiver().tell(message1, message.getSender());
-                        input.close();
-            try {
-                bai.close();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         });
