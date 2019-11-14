@@ -12,6 +12,7 @@ import akka.stream.javadsl.StreamRefs;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import de.hpi.ddm.structures.SourceRefMessage;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -20,11 +21,8 @@ import org.apache.commons.lang3.ArrayUtils;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.Serializable;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CompletionStage;
 
 public class LargeMessageProxy extends AbstractLoggingActor {
 
@@ -33,7 +31,8 @@ public class LargeMessageProxy extends AbstractLoggingActor {
     ////////////////////////
 
     public static final String DEFAULT_NAME = "largeMessageProxy";
-
+    // Defines the message size. Depending on the expected message load on the system this needs to be adjusted.
+    public static final int PACKAGE_SIZE = 10000;
     public static Props props() {
         return Props.create(LargeMessageProxy.class);
     }
@@ -48,16 +47,6 @@ public class LargeMessageProxy extends AbstractLoggingActor {
     public static class LargeMessage<T> implements Serializable {
         private static final long serialVersionUID = 2940665245810221108L;
         private T message;
-        private ActorRef receiver;
-    }
-
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class BytesMessage<T> implements Serializable {
-        private static final long serialVersionUID = 4057807743872319842L;
-        private T bytes;
-        private ActorRef sender;
         private ActorRef receiver;
     }
 
@@ -87,6 +76,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
         ActorSelection receiverProxy = this.context().actorSelection(receiver.path().child(DEFAULT_NAME));
 
         try {
+            // 1. Serialize message content with Kryo into a byte array
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             Kryo kryo = new Kryo();
             Output output = new Output(bos);
@@ -94,8 +84,13 @@ public class LargeMessageProxy extends AbstractLoggingActor {
             output.close();
             byte[] messageByte = bos.toByteArray();
 
-            Source<List<Byte>, NotUsed> source = Source.from(Arrays.asList(ArrayUtils.toObject(messageByte))).grouped(10000);
+            // 2. Create a stream on the byte array by converting it to a Byte array
+            // 2.a Group the stream content for better transfer performance
+            Source<List<Byte>, NotUsed> source = Source.from(Arrays.asList(ArrayUtils.toObject(messageByte))).grouped(PACKAGE_SIZE);
+
+            // 3. Create a reference to the source of the stream and send it to the receiving LMProxy
             SourceRef<List<Byte>> sourceRef = source.runWith(StreamRefs.sourceRef(), this.context().system());
+            // and attach the original message meta information
             receiverProxy.tell(new SourceRefMessage(sourceRef, messageByte.length, this.sender(), message.getReceiver()), getSelf());
 
         } catch (Exception e) {
@@ -104,40 +99,38 @@ public class LargeMessageProxy extends AbstractLoggingActor {
     }
 
     private void handle(SourceRefMessage sourceRefMessage) {
-        System.out.println("We have a new message");
-        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
-        LocalDateTime now = LocalDateTime.now();
-        System.out.println(dtf.format(now));
-
-        SourceRef<List<Byte>> sourceRef = sourceRefMessage.getSourceRef();
-        CompletionStage<List<List<Byte>>> listCompletionStage = sourceRef
-                .getSource()
-                .limit(sourceRefMessage.getLength())
-                .runWith(Sink.seq(), this.context().system());
-
-        listCompletionStage.whenCompleteAsync((listOfBytes, exception) -> {
-            byte[] arrayOfBytes = new byte[sourceRefMessage.getLength()];
-            int index = 0;
-            for (List<Byte> list : listOfBytes) {
-                for (Byte singleByte : list) {
-                    arrayOfBytes[index] = singleByte;
-                    index++;
+        sourceRefMessage.getSourceRef()
+            // 4. Create a local source object from the reference
+            .getSource()
+            .limit(sourceRefMessage.getLength())
+            // 5. Then read the stream by running the content sequentially into a sink
+            .runWith(Sink.seq(), this.context().system())
+            // and subscribing to the completion event
+            .whenCompleteAsync((listOfBytes, exception) -> {
+                // 6. Ungroup the received Bytes, convert them to bytes, and save them in an array
+                byte[] arrayOfBytes = new byte[sourceRefMessage.getLength()];
+                int index = 0;
+                for (List<Byte> list : listOfBytes) {
+                    for (Byte singleByte : list) {
+                        arrayOfBytes[index] = singleByte;
+                        index++;
+                    }
                 }
-            }
 
-            try {
-                ByteArrayInputStream bai = new ByteArrayInputStream(arrayOfBytes);
-                Kryo kryo = new Kryo();
-                Input input = new Input(bai);
-                Object message1 = kryo.readClassAndObject(input);
-                input.close();
-                bai.close();
-                LocalDateTime now1 = LocalDateTime.now();
-                System.out.println(dtf.format(now1));
-                sourceRefMessage.getReceiver().tell(message1, sourceRefMessage.getSender());
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-        });
+                try {
+                    // 7. Deserialize the byte array with Kryo by reading from a byte stream
+                    ByteArrayInputStream bai = new ByteArrayInputStream(arrayOfBytes);
+                    Kryo kryo = new Kryo();
+                    Input input = new Input(bai);
+                    Object messageObject = kryo.readClassAndObject(input);
+                    input.close();
+                    bai.close();
+
+                    // 8. If the serialization was successful, and no exception was thrown, forward the original object to the designated receiver
+                    sourceRefMessage.getReceiver().tell(messageObject, sourceRefMessage.getSender());
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
     }
 }

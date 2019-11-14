@@ -1,4 +1,4 @@
-package de.hpi.ddm.actors;
+package de.hpi.ddm.structures;
 
 import akka.actor.ActorRef;
 import akka.stream.SourceRef;
