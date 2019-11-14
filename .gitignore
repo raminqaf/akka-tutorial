@@ -18,3 +18,5 @@ output/
 copyOctopus2Thor.sh
 copyAkkaTutorial2Thor.sh
 ddm-lmp/src/main/java/de/hpi/ddm/solution/*
+.DS_Store
+
