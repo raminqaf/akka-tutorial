@@ -106,7 +106,7 @@ public class LargeMessageProxy extends AbstractLoggingActor {
             // 5. Then read the stream by running the content sequentially into a sink
             .runWith(Sink.seq(), this.context().system())
             // and subscribing to the completion event
-            .whenCompleteAsync((listOfBytes, exception) -> {
+            .whenComplete((listOfBytes, exception) -> {
                 // 6. Ungroup the received Bytes, convert them to bytes, and save them in an array
                 byte[] arrayOfBytes = new byte[sourceRefMessage.getLength()];
                 int index = 0;
