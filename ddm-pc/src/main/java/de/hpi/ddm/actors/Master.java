@@ -1,15 +1,12 @@
 package de.hpi.ddm.actors;
 
 import akka.actor.*;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class Master extends AbstractLoggingActor {
 
@@ -58,7 +55,13 @@ public class Master extends AbstractLoggingActor {
 	private final List<ActorRef> workers;
 
 	private long startTime;
-	
+	private ArrayList<String> passwordHashList = new ArrayList<String>(100);
+	private ArrayList<List<String>> hintList = new ArrayList<List<String>>(100);
+	private ArrayList<Set<String>> passwordSolutionSetList = new ArrayList<Set<String>>(100);
+	private int passwordsSolved = 0;
+
+	// Queue with combinations of letters that need to be solved
+
 	/////////////////////
 	// Actor Lifecycle //
 	/////////////////////
@@ -104,29 +107,49 @@ public class Master extends AbstractLoggingActor {
 			return;
 		}
 
-		Multimap<String, String> values = createHashMap(message.getLines());
+		// Save all pw and hint hashes and create pw id
+		createHashMap(message.getLines());
 
-		System.out.println(values.keys());
-		
+		// Data structure to track how many hints are solved (and what the possible solution set is)
+		// Counter for solved pws (-> terminate when all are solved)
+		// Which combinations need still to be solved
+		//System.out.println(values.keys());
+
+		// Set the hint solving worker in motion (he gets all hint hashes with pw ids)
+		// Each worker requests a combination of 10 letters to solve (If there are no left, they die)
+
+		// 1 worker generates permutations (for his 10 letters), hashes them and compares them to the known hints
+		// If gets a hit, he sends the pw id and letter combination to the master
+		// The master deletes the hint hash and adjusts the solution set for the password
+
+		// If the solution set is of size x the master starts a worker to guess the pw hash out of the limited solution set
 		this.collector.tell(new Collector.CollectMessage("Processed batch of size " + message.getLines().size()), this.self());
 		this.reader.tell(new Reader.ReadMessage(), this.self());
+
+		for (ActorRef workerRef : workers) {
+			workerRef.tell(new Worker.InitializeHintsMessage(this.hintList), this.getSelf());
+			// TODO when all batches are finished workerRef.tell() to tell them that they can start working.
+			// TODO For now it works but needs to be inspected
+		}
 	}
 
-	private Multimap<String, String> createHashMap(List<String[]> lines) {
-		Multimap<String, String> values = HashMultimap.create();
+	private void createHashMap(List<String[]> lines) {
 		for (String[] line : lines) {
-			String password = line[4];
-			values.put(password,line[5]);
-			values.put(password,line[6]);
-			values.put(password,line[7]);
-			values.put(password,line[8]);
-			values.put(password,line[9]);
-			values.put(password,line[10]);
-			values.put(password,line[11]);
-			values.put(password,line[12]);
-			values.put(password,line[13]);
+			this.passwordHashList.add(line[4]);
+			int pwID = this.passwordHashList.size()-1;
+			List<String> hints = new LinkedList<String>();
+			hints.add(line[5]);
+			hints.add(line[6]);
+			hints.add(line[7]);
+			hints.add(line[8]);
+			hints.add(line[9]);
+			hints.add(line[10]);
+			hints.add(line[11]);
+			hints.add(line[12]);
+			hints.add(line[13]);
+			this.hintList.add(pwID, hints);
+			this.passwordSolutionSetList.add(pwID, new HashSet<>(Arrays.asList("A","B","C","D","E","F","G","H","I","J","K")));
 		}
-		return values;
 	}
 	
 	protected void terminate() {
@@ -143,6 +166,21 @@ public class Master extends AbstractLoggingActor {
 		long executionTime = System.currentTimeMillis() - this.startTime;
 		this.log().info("Algorithm finished in {} ms", executionTime);
 	}
+
+	// TODO handle work request from worker
+	// remove first queue element and send it to worker
+	// if queue is empty start solving password hashes
+
+	// TODO handle hint solution from worker
+	// remove hash from all password hash lists (mit den pw ids)
+	// adjust password solution set
+	// if pw solution set has size X (maybe = 4) add password hash plus solution set to worker queue
+
+	// TODO handle password solve
+	// increment solved pw counter by 1
+	// print solved password
+	// empty hash list for password
+	// if all pws are solved terminate system
 
 	protected void handle(RegistrationMessage message) {
 		this.context().watch(this.sender());

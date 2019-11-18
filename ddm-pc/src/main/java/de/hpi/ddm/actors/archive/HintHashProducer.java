@@ -1,4 +1,6 @@
-package de.hpi.ddm.actors;
+package de.hpi.ddm.actors.archive;
+
+import de.hpi.ddm.actors.Worker;
 
 import java.util.Arrays;
 import java.util.Collections;

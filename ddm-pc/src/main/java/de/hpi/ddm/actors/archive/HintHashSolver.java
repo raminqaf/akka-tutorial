@@ -1,16 +1,10 @@
-package de.hpi.ddm.actors;
+package de.hpi.ddm.actors.archive;
 
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
-import javafx.util.Pair;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import de.hpi.ddm.actors.Worker;
 
-import java.io.Serializable;
-import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 
 public class HintHashSolver extends Worker {
 

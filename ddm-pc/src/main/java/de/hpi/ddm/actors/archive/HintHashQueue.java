@@ -1,8 +1,9 @@
-package de.hpi.ddm.actors;
+package de.hpi.ddm.actors.archive;
 
 import akka.actor.ActorRef;
 import akka.actor.ActorSelection;
 import akka.actor.dsl.Creators;
+import de.hpi.ddm.actors.Worker;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
