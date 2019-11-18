@@ -13,11 +13,13 @@ import akka.cluster.MemberStatus;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import de.hpi.ddm.MasterSystem;
+import de.hpi.ddm.utils.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -45,8 +47,16 @@ public class Worker extends AbstractLoggingActor {
 	@NoArgsConstructor
 	@AllArgsConstructor
 	public static class InitializeHintsMessage implements Serializable {
-		private static final long serialVersionUID = 2940665245810221108L; // TODO Klären welche id hier richtig ist
+		private static final long serialVersionUID = 7327181886368767987L;
 		private List<List<String>> hints;
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	public static class PasswordCharMessage implements Serializable {
+		private static final long serialVersionUID = -1441743248985563055L;
+		private List<List<String>> passwordChars;
 	}
 
 	// TODO Message to tell the master the worker is ready for new work
@@ -94,6 +104,7 @@ public class Worker extends AbstractLoggingActor {
 				.match(MemberUp.class, this::handle)
 				.match(MemberRemoved.class, this::handle)
 				.match(InitializeHintsMessage.class, this::handle)
+				.match(PasswordCharMessage.class, this::handle)
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
@@ -102,13 +113,24 @@ public class Worker extends AbstractLoggingActor {
 
 	// TODO handle password solving
 
+	private void handle(PasswordCharMessage message) {
+		this.log().info("this is my massage: {}", message.passwordChars);
+		List<String> result = new ArrayList<>();
+		for (List<String> passwordChar : message.passwordChars) {
+			String str= passwordChar.toString().replaceAll(",", "");
+			char[] chars = str.substring(1, str.length()-1).replaceAll(" ", "").toCharArray();
+//			StringUtils.heapPermutation(chars, chars.length, chars.length, result);
+//			this.log().info(result.toString());
+		}
+	}
+
 	private void handle(InitializeHintsMessage message) {
 		for (int index = 0; index < message.getHints().size(); index++) {
 			for(String hint : message.getHints().get(index)) {
 				this.hints.put(hint, index);
 			}
 		}
-		System.out.println(this.hints.keys().size());
+		this.sender().tell(new Master.ReadyToWorkMessage(this.self().toString()), this.self());
 	}
 
 	private void handle(CurrentClusterState message) {

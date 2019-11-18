@@ -45,6 +45,12 @@ public class Master extends AbstractLoggingActor {
 	public static class RegistrationMessage implements Serializable {
 		private static final long serialVersionUID = 3303081601659723997L;
 	}
+
+	@Data @NoArgsConstructor @AllArgsConstructor
+	public static class ReadyToWorkMessage implements Serializable {
+		private static final long serialVersionUID = 744312234949119713L;
+		private String message;
+	}
 	
 	/////////////////
 	// Actor State //
@@ -57,7 +63,7 @@ public class Master extends AbstractLoggingActor {
 	private long startTime;
 	private ArrayList<String> passwordHashList = new ArrayList<String>(100);
 	private ArrayList<List<String>> hintList = new ArrayList<List<String>>(100);
-	private ArrayList<Set<String>> passwordSolutionSetList = new ArrayList<Set<String>>(100);
+	private ArrayList<List<String>> passwordSolutionSetList = new ArrayList<List<String>>(100);
 	private int passwordsSolved = 0;
 
 	// Queue with combinations of letters that need to be solved
@@ -82,6 +88,7 @@ public class Master extends AbstractLoggingActor {
 				.match(BatchMessage.class, this::handle)
 				.match(Terminated.class, this::handle)
 				.match(RegistrationMessage.class, this::handle)
+				.match(ReadyToWorkMessage.class, this::handle)
 				.matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
 				.build();
 	}
@@ -128,7 +135,6 @@ public class Master extends AbstractLoggingActor {
 
 		for (ActorRef workerRef : workers) {
 			workerRef.tell(new Worker.InitializeHintsMessage(this.hintList), this.getSelf());
-			// TODO when all batches are finished workerRef.tell() to tell them that they can start working.
 			// TODO For now it works but needs to be inspected
 		}
 	}
@@ -148,7 +154,7 @@ public class Master extends AbstractLoggingActor {
 			hints.add(line[12]);
 			hints.add(line[13]);
 			this.hintList.add(pwID, hints);
-			this.passwordSolutionSetList.add(pwID, new HashSet<>(Arrays.asList("A","B","C","D","E","F","G","H","I","J","K")));
+			//this.passwordSolutionSetList.add(pwID, new HashSet<>(Arrays.asList("A","B","C","D","E","F","G","H","I","J","K")));
 		}
 	}
 	
@@ -170,6 +176,24 @@ public class Master extends AbstractLoggingActor {
 	// TODO handle work request from worker
 	// remove first queue element and send it to worker
 	// if queue is empty start solving password hashes
+	protected void handle(ReadyToWorkMessage message) {
+		this.log().info("{} is ready to work.", this.sender());
+		createPasswordSolutionList();
+		for (ActorRef worker : workers) {
+			worker.tell(new Worker.PasswordCharMessage(passwordSolutionSetList),this.self());
+		}
+	}
+
+	private void createPasswordSolutionList() {
+		if(passwordSolutionSetList.isEmpty()) {
+			List<String> stringSet = Arrays.asList("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K");
+			for (int i = stringSet.size() - 1; i >= 0; i--) {
+				List<String> newList = new ArrayList<String>(stringSet);
+				newList.remove(i);
+				passwordSolutionSetList.add(newList);
+			}
+		}
+	}
 
 	// TODO handle hint solution from worker
 	// remove hash from all password hash lists (mit den pw ids)

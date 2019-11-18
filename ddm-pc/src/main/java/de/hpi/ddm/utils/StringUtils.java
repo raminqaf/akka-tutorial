@@ -13,7 +13,7 @@ public class StringUtils {
     public static void heapPermutation(char[] a, int size, int n, List<String> results) {
         // If size is 1, store the obtained permutation
         if (size == 1)
-            results.add(new String(a));
+            results.add(generateSHA256Hash(new String(a)));
 
         for (int i = 0; i < size; i++) {
             heapPermutation(a, size - 1, n, results);
