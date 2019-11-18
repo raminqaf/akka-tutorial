@@ -1,18 +1,15 @@
 package de.hpi.ddm.actors;
 
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-
-import akka.actor.AbstractLoggingActor;
-import akka.actor.ActorRef;
-import akka.actor.PoisonPill;
-import akka.actor.Props;
-import akka.actor.Terminated;
+import akka.actor.*;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Master extends AbstractLoggingActor {
 
@@ -106,12 +103,30 @@ public class Master extends AbstractLoggingActor {
 			this.terminate();
 			return;
 		}
-		
-		for (String[] line : message.getLines())
-			System.out.println(Arrays.toString(line));
+
+		Multimap<String, String> values = createHashMap(message.getLines());
+
+		System.out.println(values.keys());
 		
 		this.collector.tell(new Collector.CollectMessage("Processed batch of size " + message.getLines().size()), this.self());
 		this.reader.tell(new Reader.ReadMessage(), this.self());
+	}
+
+	private Multimap<String, String> createHashMap(List<String[]> lines) {
+		Multimap<String, String> values = HashMultimap.create();
+		for (String[] line : lines) {
+			String password = line[4];
+			values.put(password,line[5]);
+			values.put(password,line[6]);
+			values.put(password,line[7]);
+			values.put(password,line[8]);
+			values.put(password,line[9]);
+			values.put(password,line[10]);
+			values.put(password,line[11]);
+			values.put(password,line[12]);
+			values.put(password,line[13]);
+		}
+		return values;
 	}
 	
 	protected void terminate() {
