@@ -3,8 +3,8 @@ package de.hpi.ddm.utils;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 
 public class StringUtils {
     // Generating all permutations of an array using Heap's Algorithm
@@ -34,6 +34,35 @@ public class StringUtils {
         }
     }
 
+    static void printAllKLengthRec(char[] set,
+                                   String prefix,
+                                   int n, int k, int validCount) {
+
+        // Base case: k is 0, print prefix
+        if (k == 0) {
+            System.out.println(prefix);
+            return;
+        }
+
+        // One by one add all valid characters and recursively call for k equals to k-1
+        for (int i = 0; i < validCount; ++i) {
+
+            // Next character of input added
+            String newPrefix = prefix + set[i];
+
+            // increment the valid count if all characters up till then have already
+            // appeared and there are characters that have not yet appeared
+            // (i.e. validCount < n)
+            int newValidCount = (i == (validCount - 1)) && (validCount < n) ?
+                    validCount + 1 :
+                    validCount;
+
+            // k is decreased, because we have added a new character
+            printAllKLengthRec(set, newPrefix,
+                    n, k - 1, newValidCount);
+        }
+    }
+
     public static String generateSHA256Hash(String line) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -44,8 +73,7 @@ public class StringUtils {
                 stringBuilder.append(Integer.toString((hashedByte & 0xff) + 0x100, 16).substring(1));
             }
             return stringBuilder.toString();
-        }
-        catch (NoSuchAlgorithmException e) {
+        } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e.getMessage());
         }
     }
