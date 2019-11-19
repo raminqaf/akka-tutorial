@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Master extends AbstractLoggingActor {
 
@@ -24,11 +25,11 @@ public class Master extends AbstractLoggingActor {
         this.reader = reader;
         this.collector = collector;
         this.workers = new ArrayList<>();
+        this.initializedWorker = new ArrayList<>();
 
-        this.passwordHashList = new ArrayList<>();
-        this.hintList = new ArrayList<>();
-        this.passwordSolutionSetList = new ArrayList<>();
-        this.workersQueue = new LinkedList<>();
+        this.passwordHashList = new ArrayList<>(100);
+        this.hintList = new ArrayList<>(100);
+        this.passwordSolutionSetList = new ArrayList<>(100);
         this.passwordCharVariationQueue = new LinkedList<>();
         this.messageQueue = new LinkedList<>();
         this.passwordsSolved = 0;
@@ -37,6 +38,12 @@ public class Master extends AbstractLoggingActor {
     ////////////////////
     // Actor Messages //
     ////////////////////
+
+    // TODO Message to tell the master the worker is ready for new work
+    @Data
+    public static class ReadyToWorkMessage implements Serializable {
+        private static final long serialVersionUID = 3406196888271074557L;
+    }
 
     @Data
     public static class StartMessage implements Serializable {
@@ -64,6 +71,12 @@ public class Master extends AbstractLoggingActor {
         private String message;
     }
 
+    @Data
+    public static class LoopMessage implements Serializable {
+        private static final long serialVersionUID = 4448431623231380480L;
+    }
+
+
     /////////////////
     // Actor State //
     /////////////////
@@ -74,15 +87,16 @@ public class Master extends AbstractLoggingActor {
 
     private long startTime;
 
-	private Queue<ActorRef> workersQueue;
 	private Queue<List<String>> passwordCharVariationQueue;
 	private Queue<Worker.InitializeHintsMessage> messageQueue;
     private ArrayList<String> passwordHashList;
-    private ArrayList<String> hintList;
-    private ArrayList<List<String>> passwordSolutionSetList;
+    private ArrayList<List<String>> hintList;
+    private ArrayList<Set<String>> passwordSolutionSetList;
     private int passwordsSolved;
+    private boolean done = false;
+    private ArrayList<Boolean> initializedWorker;
+    private Set<String> possibleChars = new HashSet<>(Arrays.asList("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K")); // TODO make this dynamic from input
 
-    // Queue with combinations of letters that need to be solved
 
     /////////////////////
     // Actor Lifecycle //
@@ -104,7 +118,9 @@ public class Master extends AbstractLoggingActor {
                 .match(BatchMessage.class, this::handle)
                 .match(Terminated.class, this::handle)
                 .match(RegistrationMessage.class, this::handle)
-                .match(HintCrackedMessage.class, this::handle)
+                .match(ReadyToWorkMessage.class, this::handle)
+                .match(LoopMessage.class, this::handle)
+                .match(Worker.HintSolutionMessage.class, this::handle)
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
                 .build();
     }
@@ -125,7 +141,11 @@ public class Master extends AbstractLoggingActor {
 
         if (message.getLines().isEmpty()) {
             this.collector.tell(new Collector.PrintMessage(), this.self());
-            this.terminate();
+            for (ActorRef workerRef : workers) {
+                workerRef.tell(new Worker.InitializeHintsMessage((List<List<String>>) hintList.clone()), this.getSelf());
+                // TODO when all batches are finished workerRef.tell() to tell them that they can start working.
+                // TODO For now it works but needs to be inspected
+            }
             return;
         }
 
@@ -144,17 +164,10 @@ public class Master extends AbstractLoggingActor {
         // The master deletes the hint hash and adjusts the solution set for the password
 
         // If the solution set is of size x the master starts a worker to guess the pw hash out of the limited solution set
-        this.collector.tell(new Collector.CollectMessage("Processed batch of size " + message.getLines().size()), this.self());
+        this.collector.tell(new Collector.CollectMessage("Processed batch of size " + hintList.size()), this.self());
         this.reader.tell(new Reader.ReadMessage(), this.self());
 
-        //give each worker one permutation, so we need 11 workers
-        while (!workersQueue.isEmpty() && !passwordCharVariationQueue.isEmpty()) {
-			ActorRef workerRef = workersQueue.peek();
-			List<String> permutation = passwordCharVariationQueue.peek();
-			workerRef.tell(new Worker.InitializeHintsMessage(this.hintList, permutation), this.getSelf());
-			workersQueue.remove();
-			passwordCharVariationQueue.remove();
-		}
+
     }
 
     private void getAllHints(List<String[]> lines) {
@@ -171,7 +184,9 @@ public class Master extends AbstractLoggingActor {
             hints.add(line[11]);
             hints.add(line[12]);
             hints.add(line[13]);
-            this.hintList.addAll(hints);
+            this.hintList.add(pwID, hints);
+            this.passwordSolutionSetList.add(pwID, new HashSet<>(Arrays.asList("A","B","C","D","E","F","G","H","I","J","K")));
+//            getSelf().tell(new LoopMessage(), this.getSelf());
         }
     }
 
@@ -190,17 +205,51 @@ public class Master extends AbstractLoggingActor {
         this.log().info("Algorithm finished in {} ms", executionTime);
     }
 
+    protected void handle(LoopMessage message) {
+        if(done) {
+            context().system().terminate();
+        } else {
+            if(initializedWorker.contains(false)) {
+                for(int index = 0; index < workers.size(); index++) {
+                    if(!initializedWorker.get(index)) {
+                        workers.get(index).tell(new Worker.InitializeHintsMessage((List<List<String>>) hintList.clone()), getSelf());
+                        initializedWorker.set(index, true);
+                    }
+                }
+            }
+            for (ActorRef workerRef : workers) {
+                if(!passwordCharVariationQueue.isEmpty()) {
+                    workerRef.tell(new Worker.CharacterPermutationMessage(passwordCharVariationQueue.remove()), this.getSelf());
+                }
+            }
+            getSelf().tell(new LoopMessage(), this.getSelf());
+        }
+    }
+
     // TODO handle work request from worker
     // remove first queue element and send it to worker
     // if queue is empty start solving password hashes
-    protected void handle(HintCrackedMessage message) {
-        this.log().info("{} is ready to work.", this.sender());
+    protected void handle(ReadyToWorkMessage message) {
+            if(!passwordCharVariationQueue.isEmpty()) {
+                this.getSender().tell(new Worker.CharacterPermutationMessage(passwordCharVariationQueue.remove()), this.getSelf());
+            } else {
+//                self().tell(new LoopMessage(), getSelf());
+            }
+
     }
 
     // TODO handle hint solution from worker
     // remove hash from all password hash lists (mit den pw ids)
     // adjust password solution set
     // if pw solution set has size X (maybe = 4) add password hash plus solution set to worker queue
+    protected void handle(Worker.HintSolutionMessage message) {
+        for(int pwID : message.getPasswordIDs()) {
+            passwordSolutionSetList.set(pwID, passwordSolutionSetList.get(pwID).stream().filter(message.getSolutionChars()::contains).collect(Collectors.toSet())); // TODO make this more efficient: We can save the removed letter together with the combination, and therefore have him here at hand
+            if(passwordSolutionSetList.get(pwID).size() <= 9) {
+                System.out.println("PW: " + pwID + " with possible chars: " + passwordSolutionSetList.get(pwID));
+            }
+        }
+    }
 
     // TODO handle password solve
     // increment solved pw counter by 1
@@ -211,25 +260,30 @@ public class Master extends AbstractLoggingActor {
     protected void handle(RegistrationMessage message) {
         this.context().watch(this.sender());
         this.workers.add(this.sender());
-		this.workersQueue.add(this.sender());
+//        this.initializedWorker.add(false);
+//        if(!hintList.isEmpty()) {
+//            this.sender().tell(new Worker.InitializeHintsMessage((List<List<String>>) hintList.clone()), getSelf());
+//            this.initializedWorker.set(initializedWorker.size()-1, true);
+//            if(!passwordCharVariationQueue.isEmpty()) {
+//                this.sender().tell(new Worker.CharacterPermutationMessage(passwordCharVariationQueue.remove()), this.getSelf());
+//            }
+//        }
 //		this.log().info("Registered {}", this.sender());
     }
 
     protected void handle(Terminated message) {
         this.context().unwatch(message.getActor());
         this.workers.remove(message.getActor());
-//		this.log().info("Unregistered {}", message.getActor());
+		this.log().info("Unregistered {}", message.getActor());
     }
 
     private void createPasswordCharCombinations() {
-        if (passwordSolutionSetList.isEmpty()) {
             List<String> stringSet = Arrays.asList("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K");
             for (int i = stringSet.size() - 1; i >= 0; i--) {
                 List<String> newList = new ArrayList<>(stringSet);
 				String removedStr = newList.remove(i);
-                passwordSolutionSetList.add(newList);
 				passwordCharVariationQueue.add(newList);
             }
-        }
     }
+
 }

@@ -13,13 +13,14 @@ import akka.cluster.MemberStatus;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import de.hpi.ddm.MasterSystem;
-import de.hpi.ddm.utils.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.util.*;
+
+import static de.hpi.ddm.utils.StringUtils.generateSHA256Hash;
 
 public class Worker extends AbstractLoggingActor {
 
@@ -45,24 +46,38 @@ public class Worker extends AbstractLoggingActor {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class InitializeHintsMessage implements Serializable {
-        private static final long serialVersionUID = 7327181886368767987L;
-        private List<String> hints;
-        private List<String> passwordPermutation;
+        private static final long serialVersionUID = 8555259510371359233L;
+        private List<List<String>> hints;
     }
+
 
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class PasswordCharMessage implements Serializable {
-        private static final long serialVersionUID = -1441743248985563055L;
+        private static final long serialVersionUID = 3141460778041873236L;
         private List<List<String>> passwordChars;
     }
 
-    // TODO Message to tell the master the worker is ready for new work
-
     // TODO Message from master to worker to tell him hint combination to solve
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CharacterPermutationMessage implements Serializable {
+        private static final long serialVersionUID = 2432730560556273732L;
+        private List<String> charsToPermutate;
+    }
 
     // TODO Message from worker to master to tell him solution for a hint and for which passwords
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class HintSolutionMessage implements Serializable {
+        private static final long serialVersionUID = -1441743248985563055L;
+        private Set<String> solutionChars;
+        private Collection<Integer> passwordIDs;
+    }
+
 
     // TODO Message form master to worker to tell him password plus solution set to solve
 
@@ -74,7 +89,7 @@ public class Worker extends AbstractLoggingActor {
 
     private Member masterSystem;
     private final Cluster cluster;
-    private Multimap<String, Integer> hints = HashMultimap.create();
+    private Multimap<String, Integer> hints;
 
     /////////////////////
     // Actor Lifecycle //
@@ -104,11 +119,47 @@ public class Worker extends AbstractLoggingActor {
                 .match(MemberRemoved.class, this::handle)
                 .match(InitializeHintsMessage.class, this::handle)
                 .match(PasswordCharMessage.class, this::handle)
+                .match(CharacterPermutationMessage.class, this::handle)
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
                 .build();
     }
 
     // TODO handle hint combination solving
+    protected void handle(CharacterPermutationMessage message) {
+        int i = 0;
+        int[] c = new int[10];
+        List<String> hintLetters = message.getCharsToPermutate();
+        Arrays.fill(c, 0);
+        String hash = generateSHA256Hash(String.join("", hintLetters));
+        if(hints.containsKey(hash)) {
+            this.getSender().tell(new HintSolutionMessage(new HashSet<>(hintLetters), hints.get(hash)), this.getSelf());
+        }
+
+        int hintLettersSize = hintLetters.size();
+        int counter = 0;
+//        final int COUNT_PASSWORD = 100;
+
+        while(i < hintLettersSize) {// && counter <= COUNT_PASSWORD) {
+            if(c[i] < i) {
+                if((c[i] & 1) == 0) {
+                    Collections.swap(hintLetters, 0, i);
+                } else {
+                    Collections.swap(hintLetters, c[i], i);
+                }
+                hash = generateSHA256Hash(String.join("", hintLetters));
+                if(hints.containsKey(hash)) {
+                    this.getSender().tell(new HintSolutionMessage(new HashSet<>(hintLetters), hints.get(hash)), this.getSelf());
+                }
+                c[i] += 1;
+                i = 0;
+                counter += 1;
+            } else {
+                c[i] = 0;
+                i += 1;
+            }
+        }
+        this.getSender().tell(new Master.ReadyToWorkMessage(), this.getSelf());
+    }
 
     // TODO handle password solving
 
@@ -124,22 +175,16 @@ public class Worker extends AbstractLoggingActor {
     }
 
     private void handle(InitializeHintsMessage message) {
-        List<String> results = new ArrayList<>();
-        List<String> permutation = message.getPasswordPermutation();
-        List<String> solvedHashes = new ArrayList<>();
-        String str = permutation.toString().replaceAll(",", "");
-        char[] chars = str.substring(1, str.length() - 1).replaceAll(" ", "").toCharArray();
-        StringUtils.heapPermutation(chars, chars.length, chars.length, results);
-
-		for (String result: results) {
-			for (String hint: message.hints) {
-				if (hint.equals(result))
-					solvedHashes.add(result);
-			}
-		}
-
-        this.sender().tell(new Master.HintCrackedMessage(this.self().toString()), this.self());
+        hints = HashMultimap.create();
+        for (int index = 0; index < message.getHints().size(); index++) {
+            for(String hint : message.getHints().get(index)) {
+                this.hints.put(hint, index);
+            }
+        }
+        System.out.println(this.hints.keys().size());
+        this.getSender().tell(new Master.ReadyToWorkMessage(), this.getSelf());
     }
+
 
     private void handle(CurrentClusterState message) {
         message.getMembers().forEach(member -> {
