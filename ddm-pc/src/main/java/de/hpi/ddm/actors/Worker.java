@@ -35,6 +35,7 @@ public class Worker extends AbstractLoggingActor {
 
     public Worker() {
         this.cluster = Cluster.get(this.context().system());
+        this.hints = HashMultimap.create();
     }
 
     ////////////////////
@@ -46,8 +47,7 @@ public class Worker extends AbstractLoggingActor {
     @AllArgsConstructor
     public static class InitializeHintsMessage implements Serializable {
         private static final long serialVersionUID = 7327181886368767987L;
-        private List<String> hints;
-        private List<String> passwordPermutation;
+        private Multimap<String, Integer> hints;
     }
 
     @Data
@@ -55,7 +55,8 @@ public class Worker extends AbstractLoggingActor {
     @AllArgsConstructor
     public static class PasswordCharMessage implements Serializable {
         private static final long serialVersionUID = -1441743248985563055L;
-        private List<List<String>> passwordChars;
+		private List<String> passwordPermutation;
+		private String keyString;
     }
 
     // TODO Message to tell the master the worker is ready for new work
@@ -74,7 +75,7 @@ public class Worker extends AbstractLoggingActor {
 
     private Member masterSystem;
     private final Cluster cluster;
-    private Multimap<String, Integer> hints = HashMultimap.create();
+    private Multimap<String, Integer> hints;
 
     /////////////////////
     // Actor Lifecycle //
@@ -113,31 +114,24 @@ public class Worker extends AbstractLoggingActor {
     // TODO handle password solving
 
     private void handle(PasswordCharMessage message) {
-        this.log().info("this is my massage: {}", message.passwordChars);
-        List<String> result = new ArrayList<>();
-        for (List<String> passwordChar : message.passwordChars) {
-            String str = passwordChar.toString().replaceAll(",", "");
-            char[] chars = str.substring(1, str.length() - 1).replaceAll(" ", "").toCharArray();
-//			StringUtils.heapPermutation(chars, chars.length, chars.length, result);
-//			this.log().info(result.toString());
-        }
+    	System.out.println(message.keyString);
     }
 
     private void handle(InitializeHintsMessage message) {
-        List<String> results = new ArrayList<>();
-        List<String> permutation = message.getPasswordPermutation();
-        List<String> solvedHashes = new ArrayList<>();
-        String str = permutation.toString().replaceAll(",", "");
-        char[] chars = str.substring(1, str.length() - 1).replaceAll(" ", "").toCharArray();
-        StringUtils.heapPermutation(chars, chars.length, chars.length, results);
-
-		for (String result: results) {
-			for (String hint: message.hints) {
-				if (hint.equals(result))
-					solvedHashes.add(result);
-			}
-		}
-
+//        List<String> results = new ArrayList<>();
+//        List<String> permutation = message.getPasswordPermutation();
+//        List<String> solvedHashes = new ArrayList<>();
+//        String str = permutation.toString().replaceAll(",", "");
+//        char[] chars = str.substring(1, str.length() - 1).replaceAll(" ", "").toCharArray();
+//        StringUtils.heapPermutation(chars, chars.length, chars.length, results);
+//
+//		for (String result: results) {
+//			for (String hint: message.hints) {
+//				if (hint.equals(result))
+//					solvedHashes.add(result);
+//			}
+//		}
+		hints = message.hints;
         this.sender().tell(new Master.HintCrackedMessage(this.self().toString()), this.self());
     }
 
