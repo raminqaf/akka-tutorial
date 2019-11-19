@@ -59,5 +59,45 @@ public class HintHashProducer extends Worker {
             }
         }
         return results;
+//        int i = 0;
+//        int[] c = new int[10];
+//        List<String> hintLetters = message.getCharsToPermutate();
+//        Arrays.fill(c, 0);
+//        String hash = generateSHA256Hash(String.join("", hintLetters));
+//        int hits = 0;
+//        if(hints.containsKey(hash)) {
+//            this.getSender().tell(new HintSolutionMessage(new HashSet<>(hintLetters), hints.get(hash), hash), this.getSelf());
+//            hits++;
+//        }
+//
+//        int hintLettersSize = hintLetters.size();
+//        int counter = 1;
+////        final int COUNT_PASSWORD = 100;
+//
+//        while(i < hintLettersSize) {// && counter <= COUNT_PASSWORD) {
+//            if(c[i] < i) {
+//                if((c[i] & 1) == 0) {
+//                    Collections.swap(hintLetters, 0, i);
+//                } else {
+//                    Collections.swap(hintLetters, c[i], i);
+//                }
+//                hash = generateSHA256Hash(String.join("", hintLetters));
+//                if(hints.containsKey(hash)) {
+//                    this.getSender().tell(new HintSolutionMessage(new HashSet<>(hintLetters), hints.get(hash), hash), this.getSelf());
+//                    System.out.println(hash);
+//                    System.out.println(hintLetters);
+//                    System.out.println(counter);
+//                    hits++;
+//                }
+//                c[i] += 1;
+//                i = 0;
+//                counter += 1;
+//            } else {
+//                c[i] = 0;
+//                i += 1;
+//            }
+//        }
+//        System.out.println(counter);
+//        System.out.println(hits);
     }
 }
