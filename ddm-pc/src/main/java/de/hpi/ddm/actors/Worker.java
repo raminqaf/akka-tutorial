@@ -78,7 +78,7 @@ public class Worker extends AbstractLoggingActor {
     public static class HintSolutionMessage implements Serializable {
         private static final long serialVersionUID = -1441743248985563055L;
         private Set<String> solutionChars; // TODO apparently not serializable
-        private Collection<Integer> passwordIDs;
+        private List<Integer> passwordIDs;
         private String hash;
     }
 
@@ -171,7 +171,7 @@ public class Worker extends AbstractLoggingActor {
             String hash = generateSHA256Hash(new String(a));
             if(hints.containsKey(hash)) {
                 // TODO Batch this
-                this.getSender().tell(new HintSolutionMessage(currentChars, hints.get(hash), hash), this.getSelf());
+                this.getSender().tell(new HintSolutionMessage(currentChars, new ArrayList<Integer>(hints.get(hash)), hash), this.getSelf());
             }
         }
 
