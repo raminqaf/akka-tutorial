@@ -93,7 +93,9 @@ public class Master extends AbstractLoggingActor {
     private int passwordsSolved;
     private boolean done = false;
     private ArrayList<Boolean> initializedWorker;
-    private Set<String> possibleChars = new HashSet<>(Arrays.asList("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K")); // TODO make this dynamic from input
+    // TODO make this dynamic from input
+    // TODO split this in ranges
+    private Set<String> possibleChars = new HashSet<>(Arrays.asList("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"));
     private Queue<Worker.PasswordSolutionSetMessage> passwordSolutionSetQueue;
 
 
@@ -164,6 +166,7 @@ public class Master extends AbstractLoggingActor {
             this.passwordHashList.add(line[4]);
             int pwID = this.passwordHashList.size() - 1;
             Set<String> hints = new HashSet<>();
+            // TODO amount of hints is dynamic
             hints.add(line[5]);
             hints.add(line[6]);
             hints.add(line[7]);
