@@ -136,6 +136,7 @@ public class Worker extends AbstractLoggingActor {
                 .match(MemberRemoved.class, this::handle)
                 .match(PasswordSolutionSetMessage.class, this::handle)
                 .match(CharacterPermutationMessage.class, this::handle)
+                .match(Master.LoopMessage.class, this::handle)
                 .matchAny(object -> this.log().info("Received unknown message: \"{}\"", object.toString()))
                 .build();
     }
@@ -261,6 +262,10 @@ public class Worker extends AbstractLoggingActor {
             }
         }
         return false;
+    }
+
+    private void handle(Master.LoopMessage message) {
+        getSender().tell(new Master.ReadyToWorkMessage(), getSelf());
     }
 
 

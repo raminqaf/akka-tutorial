@@ -50,6 +50,11 @@ public class Master extends AbstractLoggingActor {
     }
 
     @Data
+    public static class LoopMessage implements Serializable {
+        private static final long serialVersionUID = 8091557030536129535L;
+    }
+
+    @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class BatchMessage implements Serializable {
@@ -121,13 +126,6 @@ public class Master extends AbstractLoggingActor {
 
     protected void handle(BatchMessage message) {
 
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////
-        // The input file is read in batches for two reasons: /////////////////////////////////////////////////
-        // 1. If we distribute the batches early, we might not need to hold the entire input data in memory. //
-        // 2. If we process the batches early, we can achieve latency hiding. /////////////////////////////////
-        // TODO: Implement the processing of the data for the concrete assignment. ////////////////////////////
-        ///////////////////////////////////////////////////////////////////////////////////////////////////////
-
         if (message.getLines().isEmpty()) {
             this.collector.tell(new Collector.PrintMessage(), this.self());
             createPasswordCharCombinations();
@@ -135,8 +133,8 @@ public class Master extends AbstractLoggingActor {
                 if(!passwordCharVariationQueue.isEmpty()) {
                     workerRef.tell(new Worker.CharacterPermutationMessage(passwordCharVariationQueue.remove(), (List<Set<String>>) hintList.clone()), this.getSelf());
                 }
-                // TODO when all batches are finished workerRef.tell() to tell them that they can start working.
-                // TODO For now it works but needs to be inspected
+                // TODO Batch the hints
+                // TODO Maybe Batch the solution spaces
             }
             return;
         }
@@ -204,6 +202,8 @@ public class Master extends AbstractLoggingActor {
                 this.getSender().tell(new Worker.CharacterPermutationMessage(passwordCharVariationQueue.remove(), (List<Set<String>>) hintList.clone()), this.getSelf());
             } else if(!passwordSolutionSetQueue.isEmpty()) {
                 this.getSender().tell(passwordSolutionSetQueue.remove(), getSelf());
+            } else {
+                getSender().tell(new LoopMessage(), getSelf());
             }
 
     }
@@ -249,7 +249,7 @@ public class Master extends AbstractLoggingActor {
     protected void handle(RegistrationMessage message) {
         this.context().watch(this.sender());
         this.workers.add(this.sender());
-        // TODO Maybe look if we have work to schedule, could be possible a worker joins later
+        getSender().tell(new LoopMessage(), getSelf());
 //		this.log().info("Registered {}", this.sender());
     }
 
