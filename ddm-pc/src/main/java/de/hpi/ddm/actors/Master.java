@@ -38,7 +38,7 @@ public class Master extends AbstractLoggingActor {
     // Actor Messages //
     ////////////////////
 
-    // TODO Message to tell the master the worker is ready for new work
+    // Message to tell the master the worker is ready for new work
     @Data
     public static class ReadyToWorkMessage implements Serializable {
         private static final long serialVersionUID = 3406196888271074557L;
@@ -91,11 +91,10 @@ public class Master extends AbstractLoggingActor {
     private ArrayList<Set<String>> hintList;
     private ArrayList<Set<String>> passwordSolutionSetList;
     private int passwordsSolved;
-    private boolean done = false;
-    private ArrayList<Boolean> initializedWorker;
-    // TODO make this dynamic from input
-    // TODO split this in ranges
+
+    // TODO make this possibleChars dynamic from input
     private Set<String> possibleChars = new HashSet<>(Arrays.asList("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"));
+
     private Queue<Worker.PasswordSolutionSetMessage> passwordSolutionSetQueue;
 
 
@@ -135,8 +134,7 @@ public class Master extends AbstractLoggingActor {
                 if(!passwordCharVariationQueue.isEmpty()) {
                     workerRef.tell(new Worker.CharacterPermutationMessage(passwordCharVariationQueue.remove(), (List<Set<String>>) hintList.clone()), this.getSelf());
                 }
-                // TODO Batch the hints
-                // TODO Maybe Batch the solution spaces
+                // TODO optional Batch the hints
             }
             return;
         }
@@ -166,7 +164,7 @@ public class Master extends AbstractLoggingActor {
             this.passwordHashList.add(line[4]);
             int pwID = this.passwordHashList.size() - 1;
             Set<String> hints = new HashSet<>();
-            // TODO amount of hints is dynamic
+            // TODO make the amount of hints dynamic
             hints.add(line[5]);
             hints.add(line[6]);
             hints.add(line[7]);
@@ -177,8 +175,8 @@ public class Master extends AbstractLoggingActor {
             hints.add(line[12]);
             hints.add(line[13]);
             this.hintList.add(pwID, hints);
+            // TODO make this list dynamic from input
             this.passwordSolutionSetList.add(pwID, new HashSet<>(Arrays.asList("A","B","C","D","E","F","G","H","I","J","K")));
-//            getSelf().tell(new LoopMessage(), this.getSelf());
         }
     }
 
@@ -197,7 +195,7 @@ public class Master extends AbstractLoggingActor {
         this.log().info("Algorithm finished in {} ms", executionTime);
     }
 
-    // TODO handle work request from worker
+    // handle work request from worker
     // remove first queue element and send it to worker
     // if queue is empty start solving password hashes
     protected void handle(ReadyToWorkMessage message) {
@@ -211,14 +209,15 @@ public class Master extends AbstractLoggingActor {
 
     }
 
-    // TODO handle hint solution from worker
+    // handle hint solution from worker
     // remove hash from all password hash lists (mit den pw ids)
     // adjust password solution set
     // if pw solution set has size X (maybe = 4) add password hash plus solution set to worker queue
     protected void handle(Worker.HintSolutionMessage message) {
         for(int pwID : message.getPasswordIDs()) {
             hintList.get(pwID).remove(message.getHash());
-            passwordSolutionSetList.set(pwID, passwordSolutionSetList.get(pwID).stream().filter(message.getSolutionChars()::contains).collect(Collectors.toSet())); // TODO make this more efficient: We can save the removed letter together with the combination, and therefore have him here at hand
+            // TODO make this update of the solution set more efficient: We can save the removed letter together with the combination, and therefore have him here at hand
+            passwordSolutionSetList.set(pwID, passwordSolutionSetList.get(pwID).stream().filter(message.getSolutionChars()::contains).collect(Collectors.toSet()));
             if(passwordSolutionSetList.get(pwID).size() <= 4 || hintList.get(pwID).size() == 0) {
                 passwordSolutionSetQueue.add(new Worker.PasswordSolutionSetMessage(passwordSolutionSetList.get(pwID), passwordHashList.get(pwID), pwID));
                 hintList.set(pwID, new HashSet<>());
@@ -229,19 +228,22 @@ public class Master extends AbstractLoggingActor {
     protected void handle(Worker.PasswordSolutionMessage message) {
         System.out.println(message.getPassword());
         passwordsSolved += 1;
-        if(passwordsSolved == 100) {
+        if(passwordsSolved == passwordHashList.size()) {
             this.terminate();
         }
     }
 
-    // TODO handle password solve
+    // handle password solve
     // increment solved pw counter by 1
     // print solved password
     // empty hash list for password
     // if all pws are solved terminate system
 
     private void createPasswordCharCombinations() {
+        // TODO optinal: split this in smaller ranges
+        // TODO make stringSet dynamic from input
         List<String> stringSet = Arrays.asList("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K");
+        // TODO make the vatiation generation dependet on the password length
         for (int i = stringSet.size() - 1; i >= 0; i--) {
             List<String> newList = new ArrayList<>(stringSet);
             String removedStr = newList.remove(i);

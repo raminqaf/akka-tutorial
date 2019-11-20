@@ -42,15 +42,8 @@ public class Worker extends AbstractLoggingActor {
     // Actor Messages //
     ////////////////////
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class InitializeHintsMessage implements Serializable {
-        private static final long serialVersionUID = 8555259510371359233L;
-        private List<List<String>> hints;
-    }
 
-
+    // Message from worker to master to tell him solution to a password id
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -61,7 +54,7 @@ public class Worker extends AbstractLoggingActor {
         private int passwordID;
     }
 
-    // TODO Message from master to worker to tell him hint combination to solve
+    // Message from master to worker to tell him hint combination to solve
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -71,19 +64,19 @@ public class Worker extends AbstractLoggingActor {
         private List<Set<String>> hints;
     }
 
-    // TODO Message from worker to master to tell him solution for a hint and for which passwords
+    // Message from worker to master to tell him solution for a hint and for which passwords
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
     public static class HintSolutionMessage implements Serializable {
         private static final long serialVersionUID = -1441743248985563055L;
-        private Set<String> solutionChars; // TODO apparently not serializable
+        private Set<String> solutionChars;
         private List<Integer> passwordIDs;
         private String hash;
     }
 
 
-    // TODO Message form master to worker to tell him password plus solution set to solve
+    // Message form master to worker to tell him password plus solution set to solve
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -93,7 +86,6 @@ public class Worker extends AbstractLoggingActor {
         private int passwordID;
     }
 
-    // TODO Message from worker to master to tell him solution to a password id
 
 
 
@@ -141,7 +133,7 @@ public class Worker extends AbstractLoggingActor {
                 .build();
     }
 
-    // TODO handle hint combination solving
+    // handle hint combination solving
     protected void handle(CharacterPermutationMessage message) {
         hints = HashMultimap.create();
         for (int index = 0; index < message.getHints().size(); index++) {
@@ -164,13 +156,14 @@ public class Worker extends AbstractLoggingActor {
         heapPermutation(a, a.length, a.length);
         this.getSender().tell(new Master.ReadyToWorkMessage(), this.getSelf());
     }
+
     void heapPermutation(char a[], int size, int n) {
         // if size becomes 1 then prints the obtained
         // permutation
         if (size == 1) {
             String hash = generateSHA256Hash(new String(a));
             if(hints.containsKey(hash)) {
-                // TODO Batch this
+                // TODO Batch all solutions and send them at the end
                 this.getSender().tell(new HintSolutionMessage(currentChars, new ArrayList<Integer>(hints.get(hash)), hash), this.getSelf());
             }
         }
@@ -199,8 +192,7 @@ public class Worker extends AbstractLoggingActor {
         }
     }
 
-    // TODO handle password solving
-
+    // handle password solving
     private void handle(PasswordSolutionSetMessage message) {
        currentPasswordID = message.getPasswordID();
        currentPasswordHash = message.getPasswordHash();
@@ -227,6 +219,8 @@ public class Worker extends AbstractLoggingActor {
                return;
            }
        }
+
+       // TODO after all 2 elements combinations are tested, all combinations need to be tested (best case without the ones already tested)
        this.getSender().tell(new Master.ReadyToWorkMessage(), this.getSelf());
     }
 
