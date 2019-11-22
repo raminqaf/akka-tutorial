@@ -57,13 +57,13 @@ public class HintHashQueue extends Worker {
 
     private void handle(HintHashBatchMessage producerMessage) {
         this.batchQueue.add(producerMessage.getBatch());
-        // TODO: Da kann man das queue handling auch noch sinnvoller gestalten
+        //  Da kann man das queue handling auch noch sinnvoller gestalten
         this.receiver.tell(new HintHashBatchMessage(this.batchQueue.remove()), this.getSelf());
     }
 
     private void handle(HintHashConsumerMessage consumerMessage) {
         if(this.batchQueue.isEmpty()) {
-            ActorSelection receiverProxy = this.context().actorSelection("receiver.path().child(DEFAULT_NAME)"); //TODO match all producers
+            ActorSelection receiverProxy = this.context().actorSelection("receiver.path().child(DEFAULT_NAME)"); // match all producers
         } else {
             consumerMessage.getConsumer().tell(new HintHashBatchMessage(this.batchQueue.remove()), this.getSelf());
         }

@@ -14,7 +14,7 @@ public class HintHashProducer extends Worker {
     /////////////////
     // Actor State //
     /////////////////
-    //TODO make this dynamic and distribute the ranges between workers
+    // make this dynamic and distribute the ranges between workers
     private int i = 0;
     private int[] c = new int[10];
     private List<String> hintLetters = Arrays.asList("A","B","C","D","E","F","G","H","I","J");
@@ -29,7 +29,7 @@ public class HintHashProducer extends Worker {
     private void handle(String command) {
         if(command.equals("produce")) {
             List<String> result = generatePermutationHash();
-            // TODO: Tell the result to all queues/consumers
+            //  Tell the result to all queues/consumers
         }
     }
 

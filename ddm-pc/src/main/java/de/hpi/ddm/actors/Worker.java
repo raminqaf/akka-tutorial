@@ -163,7 +163,6 @@ public class Worker extends AbstractLoggingActor {
         if (size == 1) {
             String hash = generateSHA256Hash(new String(a));
             if(hints.containsKey(hash)) {
-                // TODO Batch all solutions and send them at the end
                 this.getSender().tell(new HintSolutionMessage(currentChars, new ArrayList<Integer>(hints.get(hash)), hash), this.getSelf());
             }
         }
@@ -196,7 +195,7 @@ public class Worker extends AbstractLoggingActor {
     private void handle(PasswordSolutionSetMessage message) {
        currentPasswordID = message.getPasswordID();
        currentPasswordHash = message.getPasswordHash();
-       Set<Set<String>> setsToTest = new HashSet<>();
+       Set<Set<String>> setsToTest = new LinkedHashSet<>();
 
        for(String s: message.getPasswordChars()) {
            for(String s1: message.getPasswordChars()) {
@@ -207,20 +206,22 @@ public class Worker extends AbstractLoggingActor {
            }
        }
 
-       for(Set<String> comibation : setsToTest) {
-           char[] a = new char[comibation.size()];
+        setsToTest.add(new HashSet<>(message.getPasswordChars()));
+
+       for(Set<String> combination : setsToTest) {
+           char[] a = new char[combination.size()];
            int index = 0;
-           for(String s : comibation) {
+           for(String s : combination) {
                a[index] = s.toCharArray()[0];
                index++;
            }
+           // TODO: Password length needs to be dynamic
            if(printAllKLengthRec(a, "", a.length, 10)){
                this.getSender().tell(new Master.ReadyToWorkMessage(), this.getSelf());
                return;
            }
        }
 
-       // TODO after all 2 elements combinations are tested, all combinations need to be tested (best case without the ones already tested)
        this.getSender().tell(new Master.ReadyToWorkMessage(), this.getSelf());
     }
 

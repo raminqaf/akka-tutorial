@@ -29,7 +29,7 @@ public class HintHashSolver extends Worker {
     private void handle(HintHashQueue.HintHashBatchMessage producerMessage) {
         for(String hash : producerMessage.getBatch()) {
             if(this.hints.containsKey(hash)) {
-                // TODO: Tell the solved hint to the master
+                //  Tell the solved hint to the master
             }
         }
         this.batchQueue.tell(new HintHashQueue.HintHashConsumerMessage(this.getSelf()), this.getSelf());
