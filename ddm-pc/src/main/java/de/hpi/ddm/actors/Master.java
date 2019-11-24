@@ -235,6 +235,7 @@ public class Master extends AbstractLoggingActor {
         // TODO make the variation generation depend on the password length
         for (int i = passwordChars.size() - 1; i >= 0; i--) {
             List<String> newList = new ArrayList<>(passwordChars);
+            newList.remove(i);
             passwordCharVariationQueue.add(newList);
         }
     }
