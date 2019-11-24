@@ -32,7 +32,7 @@ public class Master extends AbstractLoggingActor {
         this.passwordCharVariationQueue = new LinkedList<>();
         this.passwordSolutionSetQueue = new LinkedList<>();
         this.passwordsSolved = 0;
-	}
+    }
 
     ////////////////////
     // Actor Messages //
@@ -86,14 +86,11 @@ public class Master extends AbstractLoggingActor {
 
     private long startTime;
 
-	private Queue<List<String>> passwordCharVariationQueue;
+    private Queue<List<String>> passwordCharVariationQueue;
     private ArrayList<String> passwordHashList;
     private ArrayList<Set<String>> hintList;
     private ArrayList<Set<String>> passwordSolutionSetList;
     private int passwordsSolved;
-
-    // TODO make this possibleChars dynamic from input
-    private Set<String> possibleChars = new HashSet<>(Arrays.asList("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"));
 
     private Queue<Worker.PasswordSolutionSetMessage> passwordSolutionSetQueue;
 
@@ -126,12 +123,12 @@ public class Master extends AbstractLoggingActor {
     }
 
     protected void handle(BatchMessage message) {
-
         if (message.getLines().isEmpty()) {
             this.collector.tell(new Collector.PrintMessage(), this.self());
-            createPasswordCharCombinations();
+            String passwordChars = message.getLines().get(0)[2];
+            createPasswordCharCombinations(passwordChars);
             for (ActorRef workerRef : workers) {
-                if(!passwordCharVariationQueue.isEmpty()) {
+                if (!passwordCharVariationQueue.isEmpty()) {
                     workerRef.tell(new Worker.CharacterPermutationMessage(passwordCharVariationQueue.remove(), (List<Set<String>>) hintList.clone()), this.getSelf());
                 }
                 // TODO optional Batch the hints
@@ -161,7 +158,8 @@ public class Master extends AbstractLoggingActor {
 
     private void getAllHints(List<String[]> lines) {
         for (String[] line : lines) {
-            this.passwordHashList.add(line[4]);
+            String passwordChars = line[4];
+            this.passwordHashList.add(passwordChars);
             int pwID = this.passwordHashList.size() - 1;
             Set<String> hints = new HashSet<>();
             // TODO make the amount of hints dynamic
@@ -175,8 +173,7 @@ public class Master extends AbstractLoggingActor {
             hints.add(line[12]);
             hints.add(line[13]);
             this.hintList.add(pwID, hints);
-            // TODO make this list dynamic from input
-            this.passwordSolutionSetList.add(pwID, new HashSet<>(Arrays.asList("A","B","C","D","E","F","G","H","I","J","K")));
+            this.passwordSolutionSetList.add(pwID, new HashSet<>(Arrays.asList(passwordChars.split(""))));
         }
     }
 
@@ -199,13 +196,13 @@ public class Master extends AbstractLoggingActor {
     // remove first queue element and send it to worker
     // if queue is empty start solving password hashes
     protected void handle(ReadyToWorkMessage message) {
-            if(!passwordCharVariationQueue.isEmpty()) {
-                this.getSender().tell(new Worker.CharacterPermutationMessage(passwordCharVariationQueue.remove(), (List<Set<String>>) hintList.clone()), this.getSelf());
-            } else if(!passwordSolutionSetQueue.isEmpty()) {
-                this.getSender().tell(passwordSolutionSetQueue.remove(), getSelf());
-            } else {
-                getSender().tell(new LoopMessage(), getSelf());
-            }
+        if (!passwordCharVariationQueue.isEmpty()) {
+            this.getSender().tell(new Worker.CharacterPermutationMessage(passwordCharVariationQueue.remove(), (List<Set<String>>) hintList.clone()), this.getSelf());
+        } else if (!passwordSolutionSetQueue.isEmpty()) {
+            this.getSender().tell(passwordSolutionSetQueue.remove(), getSelf());
+        } else {
+            getSender().tell(new LoopMessage(), getSelf());
+        }
 
     }
 
@@ -214,11 +211,11 @@ public class Master extends AbstractLoggingActor {
     // adjust password solution set
     // if pw solution set has size X (maybe = 4) add password hash plus solution set to worker queue
     protected void handle(Worker.HintSolutionMessage message) {
-        for(int pwID : message.getPasswordIDs()) {
+        for (int pwID : message.getPasswordIDs()) {
             hintList.get(pwID).remove(message.getHash());
             // TODO make this update of the solution set more efficient: We can save the removed letter together with the combination, and therefore have him here at hand
             passwordSolutionSetList.set(pwID, passwordSolutionSetList.get(pwID).stream().filter(message.getSolutionChars()::contains).collect(Collectors.toSet()));
-            if(passwordSolutionSetList.get(pwID).size() <= 4 || hintList.get(pwID).size() == 0) {
+            if (passwordSolutionSetList.get(pwID).size() <= 4 || hintList.get(pwID).size() == 0) {
                 passwordSolutionSetQueue.add(new Worker.PasswordSolutionSetMessage(passwordSolutionSetList.get(pwID), passwordHashList.get(pwID), pwID));
                 hintList.set(pwID, new HashSet<>());
             }
@@ -228,7 +225,7 @@ public class Master extends AbstractLoggingActor {
     protected void handle(Worker.PasswordSolutionMessage message) {
         System.out.println(message.getPassword());
         passwordsSolved += 1;
-        if(passwordsSolved == passwordHashList.size()) {
+        if (passwordsSolved == passwordHashList.size()) {
             this.terminate();
         }
     }
@@ -239,14 +236,13 @@ public class Master extends AbstractLoggingActor {
     // empty hash list for password
     // if all pws are solved terminate system
 
-    private void createPasswordCharCombinations() {
-        // TODO optinal: split this in smaller ranges
-        // TODO make stringSet dynamic from input
-        List<String> stringSet = Arrays.asList("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K");
-        // TODO make the vatiation generation dependet on the password length
+    private void createPasswordCharCombinations(String passwordChars) {
+        // TODO optional: split this in smaller ranges
+        String[] passwordCharsArray = passwordChars.split("");
+        List<String> stringSet = Arrays.asList(passwordCharsArray);
+        // TODO make the variation generation depend on the password length
         for (int i = stringSet.size() - 1; i >= 0; i--) {
             List<String> newList = new ArrayList<>(stringSet);
-            String removedStr = newList.remove(i);
             passwordCharVariationQueue.add(newList);
         }
     }
@@ -261,7 +257,7 @@ public class Master extends AbstractLoggingActor {
     protected void handle(Terminated message) {
         this.context().unwatch(message.getActor());
         this.workers.remove(message.getActor());
-		this.log().info("Unregistered {}", message.getActor());
+        this.log().info("Unregistered {}", message.getActor());
     }
 
     protected void handle(StartMessage message) {
