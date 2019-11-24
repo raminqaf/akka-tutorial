@@ -2,6 +2,7 @@ package de.hpi.ddm.actors;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import com.opencsv.CSVReader;
@@ -43,7 +44,7 @@ public class Reader extends AbstractLoggingActor {
 
     private int bufferSize;
 
-    private List<String[]> buffer;
+    private List<Line> buffer;
 
     /////////////////////
     // Actor Lifecycle //
@@ -87,8 +88,8 @@ public class Reader extends AbstractLoggingActor {
 
         String[] line;
         while ((this.buffer.size() < this.bufferSize) && ((line = this.reader.readNext()) != null)) {
-            //Line convertedLine = createLine(line);
-            this.buffer.add(line);
+            Line convertedLine = createLine(line);
+            this.buffer.add(convertedLine);
         }
     }
 
@@ -96,13 +97,12 @@ public class Reader extends AbstractLoggingActor {
         Line line = new Line();
         line.setId(Integer.parseInt(buffer[0]));
         line.setName(buffer[1]);
-        line.setPasswordChars(buffer[2].toCharArray());
+        line.setPasswordChars(Arrays.asList(buffer[2].split("")));
         line.setPasswordLength(Integer.parseInt(buffer[3]));
         line.setHashedPassword(buffer[4]);
 
-        String[] hints = new String[buffer.length - 5];
-        Array.copy(buffer, 5, hints, 0, hints.length);
-        line.setHints(hints);
+        String[] hints = Arrays.copyOfRange(buffer, 5, 14);
+        line.setHints(Arrays.asList(hints));
         return line;
     }
 }

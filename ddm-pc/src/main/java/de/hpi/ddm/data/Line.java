@@ -5,6 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.LinkedList;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -12,10 +13,10 @@ import java.util.LinkedList;
 public class Line {
     int id;
     String name;
-    char[] passwordChars;
+    List<String> passwordChars;
     int passwordLength;
     String hashedPassword;
     String cleartextPassword;
-    String[] hints;
+    List<String> hints;
     LinkedList<Character> charsNotInPasswordFromHints = new LinkedList<>();
 }
