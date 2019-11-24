@@ -52,6 +52,7 @@ public class Worker extends AbstractLoggingActor {
         private Set<String> passwordChars;
         private String passwordHash;
         private int passwordID;
+        private int passwordLength;
     }
 
     // Message from master to worker to tell him hint combination to solve
@@ -60,7 +61,7 @@ public class Worker extends AbstractLoggingActor {
     @AllArgsConstructor
     public static class CharacterPermutationMessage implements Serializable {
         private static final long serialVersionUID = 2432730560556273732L;
-        private List<String> charsToPermutate;
+        private Master.CharVariation charsToPermutate;
         private List<Set<String>> hints;
     }
 
@@ -70,7 +71,7 @@ public class Worker extends AbstractLoggingActor {
     @AllArgsConstructor
     public static class HintSolutionMessage implements Serializable {
         private static final long serialVersionUID = -1441743248985563055L;
-        private Set<String> solutionChars;
+        private Master.CharVariation solutionChars;
         private List<Integer> passwordIDs;
         private String hash;
     }
@@ -96,7 +97,7 @@ public class Worker extends AbstractLoggingActor {
     private Member masterSystem;
     private final Cluster cluster;
     private Multimap<String, Integer> hints;
-    private Set<String> currentChars;
+    private Master.CharVariation currentChars;
     private String currentPasswordHash;
     private int currentPasswordID;
 
@@ -141,15 +142,15 @@ public class Worker extends AbstractLoggingActor {
                 hints.put(hint, index);
             }
         }
-        currentChars = new HashSet<>(message.getCharsToPermutate());
+        currentChars = message.getCharsToPermutate();
         if(hints.keys().isEmpty()) {
             this.getSender().tell(new Master.ReadyToWorkMessage(), this.getSelf());
             return;
         }
         System.out.println(hints.keys().size());
-        char[] a = new char[message.getCharsToPermutate().size()];
+        char[] a = new char[message.getCharsToPermutate().getChars().size()];
         int index = 0;
-        for(String s : message.getCharsToPermutate()) {
+        for(String s : message.getCharsToPermutate().getChars()) {
             a[index] = s.toCharArray()[0];
             index++;
         }
@@ -215,8 +216,8 @@ public class Worker extends AbstractLoggingActor {
                a[index] = s.toCharArray()[0];
                index++;
            }
-           // TODO: Password length needs to be dynamic
-           if(printAllKLengthRec(a, "", a.length, 10)){
+
+           if (printAllKLengthRec(a, "", a.length, message.getPasswordLength())){
                this.getSender().tell(new Master.ReadyToWorkMessage(), this.getSelf());
                return;
            }
@@ -231,13 +232,13 @@ public class Worker extends AbstractLoggingActor {
 
         // Base case: k is 0, print prefix
         if (k == 0) {
-            if(currentPasswordID == 76) {
-                if(generateSHA256Hash(prefix).equals(currentPasswordHash)) {
+            if (currentPasswordID == 76) {
+                if (generateSHA256Hash(prefix).equals(currentPasswordHash)) {
                     this.getSender().tell(new PasswordSolutionMessage(prefix, currentPasswordID), this.getSelf());
                     return true;
                 }
             } else {
-                if(generateSHA256Hash(prefix).equals(currentPasswordHash)) {
+                if (generateSHA256Hash(prefix).equals(currentPasswordHash)) {
                     this.getSender().tell(new PasswordSolutionMessage(prefix, currentPasswordID), this.getSelf());
                     return true;
                 }

@@ -101,7 +101,7 @@ public class Reader extends AbstractLoggingActor {
         line.setPasswordLength(Integer.parseInt(buffer[3]));
         line.setHashedPassword(buffer[4]);
 
-        String[] hints = Arrays.copyOfRange(buffer, 5, 14);
+        String[] hints = Arrays.copyOfRange(buffer, 5, buffer.length);
         line.setHints(Arrays.asList(hints));
         return line;
     }

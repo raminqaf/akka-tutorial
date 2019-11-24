@@ -34,6 +34,7 @@ public class Master extends AbstractLoggingActor {
         this.passwordCharVariationQueue = new LinkedList<>();
         this.passwordSolutionSetQueue = new LinkedList<>();
         this.passwordsSolved = 0;
+        this.passwordLength = 0;
     }
 
     ////////////////////
@@ -77,6 +78,15 @@ public class Master extends AbstractLoggingActor {
         private String message;
     }
 
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CharVariation implements Serializable {
+        private static final long serialVersionUID = -3036195152026916472L;
+        private List<String> chars;
+        private String removedChar;
+    }
+
 
     /////////////////
     // Actor State //
@@ -89,11 +99,12 @@ public class Master extends AbstractLoggingActor {
     private long startTime;
 
     private List<String> passwordChars;
-    private Queue<List<String>> passwordCharVariationQueue;
+    private Queue<CharVariation> passwordCharVariationQueue;
     private ArrayList<String> passwordHashList;
     private ArrayList<Set<String>> hintList;
     private ArrayList<Set<String>> passwordSolutionSetList;
     private int passwordsSolved;
+    private int passwordLength;
 
     private Queue<Worker.PasswordSolutionSetMessage> passwordSolutionSetQueue;
 
@@ -140,6 +151,7 @@ public class Master extends AbstractLoggingActor {
 
         // Save all pw and hint hashes and create pw id
         this.passwordChars = message.getLines().get(0).getPasswordChars();
+        this.passwordLength = message.getLines().get(0).getPasswordLength();
         getAllHints(message.getLines());
         this.collector.tell(new Collector.CollectMessage("Processed batch of size " + hintList.size()), this.self());
         this.reader.tell(new Reader.ReadMessage(), this.self());
@@ -207,10 +219,9 @@ public class Master extends AbstractLoggingActor {
     protected void handle(Worker.HintSolutionMessage message) {
         for (int pwID : message.getPasswordIDs()) {
             hintList.get(pwID).remove(message.getHash());
-            // TODO make this update of the solution set more efficient: We can save the removed letter together with the combination, and therefore have him here at hand
-            passwordSolutionSetList.set(pwID, passwordSolutionSetList.get(pwID).stream().filter(message.getSolutionChars()::contains).collect(Collectors.toSet()));
+            passwordSolutionSetList.get(pwID).remove(message.getSolutionChars().getRemovedChar());
             if (passwordSolutionSetList.get(pwID).size() <= 4 || hintList.get(pwID).size() == 0) {
-                passwordSolutionSetQueue.add(new Worker.PasswordSolutionSetMessage(passwordSolutionSetList.get(pwID), passwordHashList.get(pwID), pwID));
+                passwordSolutionSetQueue.add(new Worker.PasswordSolutionSetMessage(passwordSolutionSetList.get(pwID), passwordHashList.get(pwID), pwID, passwordLength));
                 hintList.set(pwID, new HashSet<>());
             }
         }
@@ -232,11 +243,11 @@ public class Master extends AbstractLoggingActor {
 
     private void createPasswordCharCombinations() {
         // TODO optional: split this in smaller ranges
-        // TODO make the variation generation depend on the password length
         for (int i = passwordChars.size() - 1; i >= 0; i--) {
             List<String> newList = new ArrayList<>(passwordChars);
+            String removedChar = newList.get(i);
             newList.remove(i);
-            passwordCharVariationQueue.add(newList);
+            passwordCharVariationQueue.add(new CharVariation(newList, removedChar));
         }
     }
 
