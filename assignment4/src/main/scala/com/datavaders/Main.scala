@@ -32,8 +32,7 @@ object Main {
     // Set the default number of shuffle partitions (default is 200, which is too high for local deployment)
     spark.conf.set("spark.sql.shuffle.partitions", "8") //
 
-    // Importing implicit encoders for standard library classes and tuples that are used as Dataset types
-    import spark.implicits._
+
 
     // TODO: Make folder name a parameter
     val inputs = List("region", "nation", "supplier", "customer", "part", "lineitem", "orders")
