@@ -53,11 +53,9 @@ object Sindy {
 //      .groupByKey{ case (key, value) => key}
       .groupBy(flatenedColumns.col("key"))
       .agg(collect_list(col("value")) as "value").select("value")
-      // Remove the column with the data entries (so that we only have the column lists)
-//      .mapGroups { case(group, values) => values.map(value => value._2).toList}
       // Remove duplicated column list entries
       .distinct()
-      // For each row with column lists explode all values and add the original list as a second column to it
+//      // For each row with column lists explode all values and add the original list as a second column to it
       .withColumn("value_exploded", explode($"value"))
       .as[(List[String], String)].sort("value_exploded")
       // Filter column name out of inclusion list (for some reason it didn't worked if we do it before the filtering)
@@ -68,27 +66,25 @@ object Sindy {
       .mapGroups{ case(group, values) => {
         val valuesList = values.toList
         var returnValue : (List[String], String) = null
-        if(valuesList.length >= 1) {
+        if(valuesList.nonEmpty) {
           var valueSet = valuesList.head._1.toSet
           valuesList.foreach(row => {
             valueSet = valueSet.&(row._1.toSet)
           })
-          println(valueSet)
-          println(valueSet.isEmpty)
           if(valueSet.toList.isEmpty) {
             returnValue = (null, group)
           } else {
-            returnValue = (valueSet.toList, group)
+            returnValue = (valueSet.toList.sorted, group)
           }
         } else {
           returnValue = (null, group)
         }
         returnValue
       }}
-      // Sorting can't happen at the end because the ouput gets shuffled (TODO: Probably something with stages)
-      .sort("_2")
       // Remove unsuitable candidates
       .filter(row => row._1 != null)
+      // Sorting
+      .sort("_2")
       // Print the output
       .collect()
       .foreach( row => {
