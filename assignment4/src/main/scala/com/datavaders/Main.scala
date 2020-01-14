@@ -1,7 +1,7 @@
 package com.datavaders
 
 import org.apache.log4j.{Level, Logger}
-import org.apache.spark.sql.{Dataset, Row, SparkSession}
+import org.apache.spark.sql.SparkSession
 
 object Main {
 
@@ -32,8 +32,6 @@ object Main {
     // Set the default number of shuffle partitions (default is 200, which is too high for local deployment)
     spark.conf.set("spark.sql.shuffle.partitions", "8") //
 
-
-
     // TODO: Make folder name a parameter
     val inputs = List("region", "nation", "supplier", "customer", "part", "lineitem", "orders")
       .map(name => s"./TPCH/tpch_$name.csv")
@@ -41,6 +39,5 @@ object Main {
     time {
       Sindy.discoverINDs(inputs, spark)
     }
-
   }
 }

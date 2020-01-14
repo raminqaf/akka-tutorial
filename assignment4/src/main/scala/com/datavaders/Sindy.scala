@@ -14,25 +14,25 @@ object Sindy {
     //------------------------------------------------------------------------------------------------------------------
 
     // Read a Dataset from a file
-    //    val tables: ListBuffer[DataFrame] = ListBuffer()
-    //    inputs.foreach(file_name => {
-    //      tables += spark.read
-    //        .option("inferSchema", "true")
-    //        .option("header", "true")
-    //        .option("delimiter", ";")
-    //        .csv(file_name)
-    //    })
-
-    // DEBUG
-    val inputs = List("artists", "tracks").map(name => s"./TPCH/$name.csv")
     val tables: ListBuffer[DataFrame] = ListBuffer()
     inputs.foreach(file_name => {
       tables += spark.read
         .option("inferSchema", "true")
         .option("header", "true")
-        .option("delimiter", ",")
+        .option("delimiter", ";")
         .csv(file_name)
     })
+
+    // DEBUG
+    //    val inputs = List("artists", "tracks").map(name => s"./TPCH/$name.csv")
+    //    val tables: ListBuffer[DataFrame] = ListBuffer()
+    //    inputs.foreach(file_name => {
+    //      tables += spark.read
+    //        .option("inferSchema", "true")
+    //        .option("header", "true")
+    //        .option("delimiter", ",")
+    //        .csv(file_name)
+    //    })
 
     // Produce flattened and unionized columns dataframe
     var flatenedColumns = spark.emptyDataFrame.withColumn("key", lit("")).withColumn("value", lit(""))
