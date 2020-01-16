@@ -19,6 +19,8 @@ object Main {
           case "--cores" :: head :: tail =>
             cores = head.toInt
             argsList = tail
+          case _ =>
+            println("command not supported. Use --path [your path to file] --cores [number of cores]")
         }
     }
 
