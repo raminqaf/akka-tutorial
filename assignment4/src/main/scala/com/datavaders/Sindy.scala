@@ -81,13 +81,9 @@ object Sindy {
       // Sorting
       .sort("_2")
       // Print the output
+      .map(row => row._2 + " < " + row._1.reduce( (string1, s2) => string1 + ", " + s2))
       .collect()
-      .foreach(row => {
-        print(row._2 + "  < ")
-        print(row._1.head)
-        row._1.splitAt(1)._2.foreach(string => print(", " + string))
-        println()
-      })
+      .foreach(println(_))
     //      .show(false)
   }
 }
